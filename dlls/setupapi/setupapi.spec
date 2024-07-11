@@ -167,6 +167,7 @@
 @ stub CM_Register_Device_Interface_ExA
 @ stub CM_Register_Device_Interface_ExW
 @ stdcall CM_Register_Notification(ptr ptr ptr ptr)
+@ stdcall CM_Unregister_Notification(ptr)
 @ stub CM_Remove_SubTree
 @ stub CM_Remove_SubTree_Ex
 @ stub CM_Remove_Unmarked_Children

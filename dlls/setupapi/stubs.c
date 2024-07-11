@@ -676,9 +676,104 @@ BOOL WINAPI SetupDiGetClassRegistryPropertyW(const GUID *class, DWORD prop, DWOR
     return FALSE;
 }
 
-CONFIGRET WINAPI CM_Register_Notification(PCM_NOTIFY_FILTER pFilter, PVOID pContext, PCM_NOTIFY_CALLBACK pCallback, PHCMNOTIFICATION pNotifyContext)
+
+
+typedef struct Notification {
+    CM_NOTIFY_FILTER filter;
+    PVOID context;
+    PCM_NOTIFY_CALLBACK callback;
+    HCMNOTIFICATION notify_handle;
+    struct Notification *next;
+} Notification;
+
+static Notification *notification_list = NULL;
+static CRITICAL_SECTION notification_lock;
+static BOOL notification_system_initialized = FALSE;
+
+void InitializeNotificationSystem() {
+    InitializeCriticalSection(&notification_lock);
+    notification_system_initialized = TRUE;
+}
+
+void CleanupNotificationSystem() {
+    EnterCriticalSection(&notification_lock);
+    Notification *current = notification_list;
+    while (current) {
+        Notification *next = current->next;
+        free(current);
+        current = next;
+    }
+    notification_list = NULL;
+    LeaveCriticalSection(&notification_lock);
+    DeleteCriticalSection(&notification_lock);
+    notification_system_initialized = FALSE;
+}
+
+CONFIGRET WINAPI CM_Register_Notification(
+    PCM_NOTIFY_FILTER pFilter,
+    PVOID pContext,
+    PCM_NOTIFY_CALLBACK pCallback,
+    PHCMNOTIFICATION pNotifyContext)
 {
-    FIXME("pFilter %p, pContext %p, pCallback %p, pNotifyContext %p stub!\n",
-        pFilter, pContext, pCallback, pNotifyContext);
+    if (!notification_system_initialized) {
+        InitializeNotificationSystem();
+    }
+
+    if (!pFilter || !pCallback || !pNotifyContext) {
+        return CR_INVALID_POINTER;
+    }
+
+    // Allocate memory for the new notification
+    Notification *new_notification = (Notification *)malloc(sizeof(Notification));
+    if (!new_notification) {
+        return CR_OUT_OF_MEMORY;
+    }
+
+    // Initialize the notification structure
+    memset(new_notification, 0, sizeof(Notification));
+    new_notification->filter = *pFilter;
+    new_notification->context = pContext;
+    new_notification->callback = pCallback;
+    new_notification->notify_handle = (HCMNOTIFICATION)new_notification;
+
+    // Add the new notification to the list
+    EnterCriticalSection(&notification_lock);
+    new_notification->next = notification_list;
+    notification_list = new_notification;
+    LeaveCriticalSection(&notification_lock);
+
+    // Return the handle
+    *pNotifyContext = new_notification->notify_handle;
+
     return CR_SUCCESS;
+}
+
+CONFIGRET WINAPI CM_Unregister_Notification(HCMNOTIFICATION NotifyContext)
+{
+    if (!notification_system_initialized) {
+        return CR_NO_SUCH_VALUE;
+    }
+
+    EnterCriticalSection(&notification_lock);
+
+    Notification *prev = NULL;
+    Notification *current = notification_list;
+
+    while (current) {
+        if (current->notify_handle == NotifyContext) {
+            if (prev) {
+                prev->next = current->next;
+            } else {
+                notification_list = current->next;
+            }
+            free(current);
+            LeaveCriticalSection(&notification_lock);
+            return CR_SUCCESS;
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    LeaveCriticalSection(&notification_lock);
+    return CR_NO_SUCH_VALUE;
 }
