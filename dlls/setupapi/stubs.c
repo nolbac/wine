@@ -676,8 +676,7 @@ BOOL WINAPI SetupDiGetClassRegistryPropertyW(const GUID *class, DWORD prop, DWOR
     return FALSE;
 }
 
-CONFIGRET WINAPI CM_Register_Notification(VOID *pFilter, PVOID pContext, VOID *pCallback,
-    VOID *pNotifyContext)
+CONFIGRET WINAPI CM_Register_Notification(PCM_NOTIFY_FILTER pFilter, PVOID pContext, PCM_NOTIFY_CALLBACK pCallback, PHCMNOTIFICATION pNotifyContext)
 {
     FIXME("pFilter %p, pContext %p, pCallback %p, pNotifyContext %p stub!\n",
         pFilter, pContext, pCallback, pNotifyContext);
